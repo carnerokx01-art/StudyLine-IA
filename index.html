@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studyline IA — Kit de Estudio Avanzado</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="top-header">
+    <div class="header-container">
+      <div class="brand-section">
+        <div class="logo-badge">📖</div>
+        <div>
+          <div class="brand-title">Studyline IA</div>
+          <div class="topic-subtitle" id="topTopicSubtitle">Materia: Sin seleccionar</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <nav class="top-modules">
+          <button class="top-mod-btn active" data-module="summary">Resumen</button>
+          <button class="top-mod-btn" data-module="cards">Tarjetas</button>
+          <button class="top-mod-btn" data-module="quiz">Cuestionario</button>
+          <button class="top-mod-btn" data-module="oral">Examen Oral</button>
+        </nav>
+        <button class="theme-toggle-btn" id="themeToggleBtn" title="Cambiar modo oscuro/claro">🌙</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside>
+      <section class="card">
+        <div class="sidebar-title">
+          <h2>Temas Guardados</h2>
+          <span class="badge-count" id="savedCountBadge">0</span>
+        </div>
+        <div id="savedTopicsContainer">
+          <p style="font-size: 0.85rem; color: var(--text-muted);">No hay temas guardados aún.</p>
+        </div>
+      </section>
+    </aside>
+
+    <main>
+      <section class="card api-card">
+        <div class="card-header-title">Configuración de Gemini API</div>
+        <div class="api-row">
+          <input type="password" id="apiKeyInput" placeholder="Pega tu Gemini API Key (AIzaSy...)" />
+          <button id="saveKeyBtn">Guardar Clave</button>
+          <select id="modelSelect">
+            <option value="">Cargando modelos Gemini...</option>
+          </select>
+        </div>
+        <small id="keyStatus" style="display: block; margin-top: 8px; font-weight: 600;"></small>
+      </section>
+
+      <section class="card">
+        <div class="card-header-title">1. Carga o pega tu contenido de estudio</div>
+        <div class="row">
+          <input id="subject" placeholder="Materia (ej. Fisiología Celular)">
+          <input id="goal" placeholder="Objetivo (ej. Examen parcial)">
+          <select id="depthSelect">
+            <option value="rapido">Rápido</option>
+            <option value="medio" selected>Medio</option>
+            <option value="extenso">Extenso</option>
+          </select>
+        </div>
+        <textarea id="text" rows="6" placeholder="Pega aquí tus apuntes, temas o resumen de estudio…"></textarea>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <label class="file">Subir archivo (PDF, Docx, TXT, etc.)
+            <input id="files" type="file" multiple accept=".pdf,.txt,.md,.docx" hidden>
+          </label>
+          <button id="genBtn">Generar / Reintentar contenido seleccionado</button>
+        </div>
+        <ul id="fileList"></ul>
+        
+        <div id="status"></div>
+      </section>
+
+      <section id="resultCard" class="card" hidden>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <h2 id="resultTitle" style="margin-bottom: 0;">Vista de Estudio</h2>
+          <button id="saveTopicBtn" style="background: #10b981; padding: 8px 18px; font-size: 0.88rem;">Guardar Tema</button>
+        </div>
+        
+        <div class="study-header-banner" id="studyBanner" hidden>
+          <span class="meta-tag">GUÍA DE ESTUDIO INTELIGENTE</span>
+          <h2 class="study-title" id="bannerSubject">Materia</h2>
+          <p class="study-subtext" id="bannerGoal">Objetivo</p>
+        </div>
+
+        <div id="view"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
