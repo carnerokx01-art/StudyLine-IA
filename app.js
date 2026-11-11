@@ -317,21 +317,21 @@ async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, api
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const depthLimits = {
-    rapido: { summary: 3, cards: 3, quiz: 3, oral: 2 },
-    medio: { summary: 5, cards: 6, quiz: 5, oral: 4 },
-    extenso: { summary: 8, cards: 10, quiz: 8, oral: 6 }
+    rapido: { summary: 3, cards: 4, quiz: 4, oral: 3 },
+    medio: { summary: 6, cards: 8, quiz: 7, oral: 5 },
+    extenso: { summary: 12, cards: 18, quiz: 15, oral: 12 }
   };
 
   const limits = depthLimits[depth] || depthLimits.medio;
 
   const prompts = {
     summary: `Genera exactamente ${limits.summary} conceptos clave detallados sobre "${subject}" (Objetivo: ${goal}). Devuelve ÚNICAMENTE un array JSON válido de objetos con este formato estricto: [{"title": "Nombre del Concepto", "desc": "Descripción detallada", "relevance": "Por qué es importante"}]. Sin texto adicional ni formato markdown extra.`,
-    cards: `Genera ${limits.cards} tarjetas de estudio para "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"front": "Pregunta", "back": "Respuesta"}]. Sin texto adicional.`,
-    quiz: `Genera ${limits.quiz} preguntas de opción múltiple sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"id": 0, "question": "Pregunta", "options": ["Opción A", "Opción B", "Opción C", "Opción D"], "answer": "Opción exacta"}]. Sin texto adicional.`,
-    oral: `Genera ${limits.oral} preguntas abiertas para examen oral sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"id": 0, "question": "Pregunta", "keywords": ["palabra1", "palabra2"]}]. Sin texto adicional.`
+    cards: `Genera ${limits.cards} tarjetas de estudio detalladas para "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"front": "Pregunta o Concepto", "back": "Respuesta o Definición"}]. Sin texto adicional.`,
+    quiz: `Genera ${limits.quiz} preguntas completas de opción múltiple sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"id": 0, "question": "Pregunta", "options": ["Opción A", "Opción B", "Opción C", "Opción D"], "answer": "Opción exacta"}]. Sin texto adicional.`,
+    oral: `Genera ${limits.oral} preguntas abiertas profundas para examen oral sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos con este formato estricto: [{"id": 0, "question": "Pregunta detallada", "keyPoints": ["Punto clave 1", "Punto clave 2", "Punto clave 3"], "keywords": ["palabra1", "palabra2"]}]. Sin texto adicional.`
   };
 
-  const promptText = `${prompts[moduleType]}\n\nMaterial:\n${text.slice(0, 15000)}`;
+  const promptText = `${prompts[moduleType]}\n\nMaterial:\n${text.slice(0, 20000)}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -345,7 +345,7 @@ async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, api
         contents: [{ parts: [{ text: promptText }] }],
         generationConfig: {
           response_mime_type: "application/json",
-          maxOutputTokens: 2500,
+          maxOutputTokens: 4000,
           temperature: 0.2
         }
       })
@@ -374,6 +374,8 @@ async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, api
 
 function renderResult(type, data) {
   if (!data) return;
+
+  el.view.className = 'animate-fade-in';
 
   if (type === 'summary') {
     el.resultTitle.textContent = 'Resumen y Conceptos Clave';
@@ -456,11 +458,12 @@ function renderResult(type, data) {
     el.resultTitle.textContent = 'Tarjetas Flashcards';
     let idx = 0;
     let masteredCount = 0;
+    let animDirection = 'animate-slide-right';
 
     const updateCardView = () => {
       const c = data[idx];
       el.view.innerHTML = `
-        <div class="flashcard-wrapper">
+        <div class="flashcard-wrapper ${animDirection}">
           <div class="flashcard-top-bar">
             <div class="fc-counter-badge">
               <span>Tarjeta ${idx + 1} de ${data.length}</span>
@@ -514,16 +517,19 @@ function renderResult(type, data) {
       flipBtn.onclick = toggleFlip;
 
       prevBtn.onclick = () => {
+        animDirection = 'animate-slide-left';
         idx = (idx - 1 + data.length) % data.length;
         updateCardView();
       };
 
       nextBtn.onclick = () => {
+        animDirection = 'animate-slide-right';
         idx = (idx + 1) % data.length;
         updateCardView();
       };
 
       masterBtn.onclick = () => {
+        animDirection = 'animate-slide-right';
         masteredCount = Math.min(data.length, masteredCount + 1);
         idx = (idx + 1) % data.length;
         updateCardView();
@@ -603,42 +609,133 @@ function renderResult(type, data) {
   } else if (type === 'oral') {
     el.resultTitle.textContent = 'Simulador de Examen Oral';
     let idx = 0;
-    const updateOral = () => {
+
+    const renderOral = () => {
       const q = data[idx];
       el.view.innerHTML = `
-        <p style="font-size:1.1rem; margin-bottom:12px;"><strong>Pregunta ${idx + 1}:</strong> ${q.question}</p>
-        <div style="display:flex; gap:10px; margin:16px 0; flex-wrap:wrap;">
-          <button id="speakBtn" style="background:#0284c7;">Escuchar Pregunta</button>
-          <button id="recBtn" style="background:#10b981;">Responder por Voz</button>
-          <button id="nextOral">Siguiente Pregunta</button>
+        <div class="oral-container animate-fade-in">
+          <div class="oral-meta-header">
+            <span class="oral-difficulty-badge">Pregunta ${idx + 1} de ${data.length}</span>
+            <button id="speakQuestionBtn" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;" title="Escuchar pregunta">🔊</button>
+          </div>
+
+          <h2 class="oral-question-title">${q.question}</h2>
+
+          <div class="oral-points-box">
+            <div class="oral-points-title">✦ Puntos clave que el evaluador espera escuchar:</div>
+            <ul class="oral-points-list">
+              ${(q.keyPoints || q.keywords || []).map(point => `<li>${point}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 8px; color: var(--text-muted);">
+            Tu respuesta oral (habla por el micrófono o escribe):
+          </div>
+
+          <div class="oral-input-wrapper">
+            <textarea id="oralAnswerText" class="oral-textarea" placeholder="Haz clic en el micrófono para hablar o escribe aquí como si estuvieras frente al profesor..."></textarea>
+            <button id="recMicBtn" class="oral-mic-btn" title="Hablar por micrófono">🎙️</button>
+          </div>
+
+          <div class="oral-footer-actions">
+            <button id="clearOralBtn" style="background:transparent; color:var(--text-muted); border:none; font-weight:600; cursor:pointer;">Borrar respuesta</button>
+            <div style="display:flex; gap:10px;">
+              <button id="nextOralBtn" style="background:var(--input-bg); color:var(--text); border:1px solid var(--border);">Siguiente pregunta</button>
+              <button id="evalOralBtn" class="btn-eval-oral">Evaluar Mi Respuesta Oral</button>
+            </div>
+          </div>
+
+          <div id="oralFeedbackContainer"></div>
         </div>
-        <p id="tBox" style="font-style:italic; color:var(--text-muted); margin-top:8px;"></p>
-        <div id="oFeedback" style="margin-top:10px;"></div>
       `;
-      document.getElementById('speakBtn').onclick = () => {
+
+      // Escuchar pregunta en voz alta
+      document.getElementById('speakQuestionBtn').onclick = () => {
         const u = new SpeechSynthesisUtterance(q.question);
         u.lang = 'es-ES';
         window.speechSynthesis.speak(u);
       };
-      document.getElementById('recBtn').onclick = () => {
+
+      // Reconocimiento de voz (Micrófono)
+      const recBtn = document.getElementById('recMicBtn');
+      const textarea = document.getElementById('oralAnswerText');
+
+      recBtn.onclick = () => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return alert('Tu navegador no soporta reconocimiento de voz (usa Chrome o Edge).');
+        if (!SR) return alert('Tu navegador no soporta reconocimiento de voz. Usa Google Chrome o Edge.');
+        
         const r = new SR();
         r.lang = 'es-ES';
-        document.getElementById('tBox').textContent = 'Escuchando tu respuesta...';
         r.start();
+        
+        recBtn.classList.add('listening');
+        textarea.placeholder = 'Escuchando tu respuesta... Habla claro.';
+
         r.onresult = (e) => {
-          const text = e.results[0][0].transcript;
-          document.getElementById('tBox').textContent = `Tu respuesta: "${text}"`;
-          const hits = (q.keywords || []).filter(k => text.toLowerCase().includes(k.toLowerCase()));
-          document.getElementById('oFeedback').innerHTML = hits.length > 0 
-            ? `<p style="color:var(--success); font-weight:600;">¡Excelente! Mencionaste conceptos clave: ${hits.join(', ')}</p>` 
-            : `<p style="color:var(--warning); font-weight:600;">Sugerencia: Procura incluir conceptos como: ${(q.keywords || []).join(', ')}</p>`;
+          const transcript = e.results[0][0].transcript;
+          textarea.value += (textarea.value ? ' ' : '') + transcript;
+          recBtn.classList.remove('listening');
+          textarea.placeholder = 'Haz clic en el micrófono para hablar o escribe aquí...';
+        };
+
+        r.onerror = () => {
+          recBtn.classList.remove('listening');
+          textarea.placeholder = 'No se pudo capturar el audio. Intenta de nuevo.';
+        };
+        
+        r.onend = () => {
+          recBtn.classList.remove('listening');
         };
       };
-      document.getElementById('nextOral').onclick = () => { idx = (idx + 1) % data.length; updateOral(); };
+
+      // Borrar respuesta
+      document.getElementById('clearOralBtn').onclick = () => {
+        textarea.value = '';
+        document.getElementById('oralFeedbackContainer').innerHTML = '';
+      };
+
+      // Evaluar respuesta contra los puntos clave
+      document.getElementById('evalOralBtn').onclick = () => {
+        const userText = textarea.value.trim().toLowerCase();
+        if (!userText) return alert('Escribe o dicta tu respuesta antes de evaluar.');
+
+        const points = q.keyPoints || q.keywords || [];
+        const matchedPoints = points.filter(p => {
+          const words = p.toLowerCase().split(' ').filter(w => w.length > 3);
+          return words.some(w => userText.includes(w));
+        });
+
+        const scorePct = Math.round((matchedPoints.length / points.length) * 100);
+
+        let feedbackHTML = `
+          <div class="oral-feedback-card animate-fade-in">
+            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; color: var(--primary);">
+              Evaluación del Profesor (${scorePct}% de cobertura)
+            </h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px;">
+              ${scorePct >= 75 ? '¡Excelente dominio del tema! Explicaste los puntos principales con claridad.' : 'Buen intento, pero te faltaron algunos detalles clave por mencionar.'}
+            </p>
+            <div style="font-size: 0.85rem; font-weight: 600;">Puntos detectados en tu explicación:</div>
+            <ul style="margin-top: 6px; padding-left: 18px; font-size: 0.88rem;">
+              ${points.map(p => {
+                const found = matchedPoints.includes(p);
+                return `<li style="color: ${found ? 'var(--success)' : 'var(--warning)'};">${found ? '✓' : '✗'} ${p}</li>`;
+              }).join('')}
+            </ul>
+          </div>
+        `;
+        document.getElementById('oralFeedbackContainer').innerHTML = feedbackHTML;
+        document.getElementById('oralFeedbackContainer').scrollIntoView({ behavior: 'smooth' });
+      };
+
+      // Siguiente pregunta
+      document.getElementById('nextOralBtn').onclick = () => {
+        idx = (idx + 1) % data.length;
+        renderOral();
+      };
     };
-    updateOral();
+
+    renderOral();
   }
 }
 
