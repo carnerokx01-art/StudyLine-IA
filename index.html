@@ -28,8 +28,8 @@
           <button class="top-mod-btn" data-module="oral">Examen Oral</button>
         </nav>
         
-        <!-- Botón Secreto Concentración VLSS55 -->
-        <button class="secret-vlss-btn" id="secretVlssBtn" title="Activar Modo Concentración VLSS55">Concentración VLSS55</button>
+        <!-- Botón Secreto Pequeño y Oculto VLSS55 -->
+        <button class="secret-vlss-btn" id="secretVlssBtn" title="Concentración VLSS55">⚡ VLSS55</button>
         
         <button class="theme-toggle-btn" id="themeToggleBtn" title="Cambiar modo oscuro/claro">🌙</button>
       </div>
@@ -39,7 +39,7 @@
   <!-- Canvas para el fondo Matrix -->
   <canvas id="matrixCanvas"></canvas>
 
-  <!-- Reproductor de audio nativo para Another Medium -->
+  <!-- Reproductor de audio local para Another Medium -->
   <audio id="vlssAudio" loop preload="auto">
     <source src="Another-Medium.mp3" type="audio/mpeg">
   </audio>
@@ -84,9 +84,14 @@
         <textarea id="text" rows="6" placeholder="Pega aquí tus apuntes, temas o resumen de estudio…"></textarea>
         
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-          <label class="file">Subir archivo (PDF, Docx, TXT, etc.)
-            <input id="files" type="file" multiple accept=".pdf,.txt,.md,.docx" hidden>
-          </label>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <label class="file">Subir documento (PDF, Docx, TXT)
+              <input id="files" type="file" multiple accept=".pdf,.txt,.md,.docx" hidden>
+            </label>
+            <label class="file" style="border-style: solid; background: var(--input-bg);">📸 Subir Imágenes
+              <input id="imageFiles" type="file" multiple accept="image/*" hidden>
+            </label>
+          </div>
           <button id="genBtn">Generar / Reintentar contenido seleccionado</button>
         </div>
         <ul id="fileList"></ul>

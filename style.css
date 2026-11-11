@@ -412,54 +412,25 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   gap: 16px;
   margin-top: 24px;
 }
+
 /* --- ANIMACIONES DE TRANSICIÓN --- */
-
-/* Animación de entrada suave para el cambio de pestañas/módulos */
 @keyframes fadeInScale {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
+.animate-fade-in { animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-.animate-fade-in {
-  animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-/* Animación de deslizamiento lateral para las tarjetas (Flashcards) */
 @keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
 }
-
 @keyframes slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
 }
+.animate-slide-right { animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-slide-left { animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
-.animate-slide-right {
-  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.animate-slide-left {
-  animation: slideInLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
 /* --- ESTILOS DEL EXAMEN ORAL AVANZADO --- */
 .oral-container { max-width: 800px; margin: 0 auto; }
 .oral-meta-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 0.85rem; font-weight: 700; color: var(--text-muted); }
@@ -475,7 +446,7 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   margin-bottom: 24px;
 }
 .oral-points-title { font-size: 0.9rem; font-weight: 700; color: var(--primary); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-.oral-points-list { list-style: disc; padding-left: 20px; font-size: 0.9rem; color: var(--text-muted); display: flex; flexDirection: column; gap: 6px; }
+.oral-points-list { list-style: disc; padding-left: 20px; font-size: 0.9rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 6px; }
 
 .oral-input-wrapper { position: relative; margin-bottom: 20px; }
 .oral-textarea {
@@ -516,7 +487,8 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   70% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
   100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
 }
-/* --- BOTÓN SECRETO PEQUEÑO Y OCULTO --- */
+
+/* --- BOTÓN SECRETO PEQUEÑO Y OCULTO VLSS55 --- */
 .secret-vlss-btn {
   background: transparent;
   color: var(--text-muted);
@@ -526,12 +498,10 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   font-size: 0.7rem;
   font-weight: 500;
   cursor: pointer;
-  opacity: 0.15; /* Muy transparente para que casi no se note */
+  opacity: 0.15;
   transition: all 0.3s ease;
   white-space: nowrap;
 }
-
-/* Al pasar el cursor por encima, se ilumina y se revela */
 .secret-vlss-btn:hover {
   opacity: 1;
   background: rgba(16, 185, 129, 0.15);
@@ -540,15 +510,6 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
 }
 
-/* Cuando el modo VLSS55 está activo, puedes hacer que se note un poco más si lo deseas */
-[data-theme="vlss55"] .secret-vlss-btn {
-  opacity: 0.8;
-  background: #047857;
-  color: #fff;
-  border: 1px solid #10b981;
-}
-
-/* Canvas de Matrix de fondo */
 #matrixCanvas {
   position: fixed;
   top: 0;
@@ -561,7 +522,6 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   background: #000000;
 }
 
-/* Tema Activo VLSS55 Matrix */
 [data-theme="vlss55"] {
   --primary: #10b981 !important;
   --primary-hover: #059669 !important;
@@ -584,6 +544,13 @@ button:disabled { background: #94a3b8; cursor: not-allowed; transform: none; }
   background: #10b981;
   color: #000000;
   box-shadow: 0 0 15px #10b981;
+}
+
+[data-theme="vlss55"] .secret-vlss-btn {
+  opacity: 0.8;
+  background: #047857;
+  color: #fff;
+  border: 1px solid #10b981;
 }
 
 .oral-footer-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }

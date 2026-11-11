@@ -4,6 +4,7 @@ let currentModule = 'summary';
 let currentGeneratedData = null;
 let availableModels = ['gemini-3.5-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 let cachedModulesData = {};
+let uploadedImagesBase64 = [];
 
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 
@@ -47,6 +48,7 @@ const el = {
   depthSelect: document.getElementById('depthSelect'),
   text: document.getElementById('text'),
   files: document.getElementById('files'),
+  imageFiles: document.getElementById('imageFiles'),
   fileList: document.getElementById('fileList'),
   genBtn: document.getElementById('genBtn'),
   saveTopicBtn: document.getElementById('saveTopicBtn'),
@@ -169,7 +171,7 @@ el.genBtn.addEventListener('click', async () => {
   await generateAllModulesSequential();
 });
 
-async function fetchWithModelFallback(text, subject, goal, depth, modKey, apiKey, initialModel) {
+async function fetchWithModelFallback(text, images, subject, goal, depth, modKey, apiKey, initialModel) {
   const preferred = el.modelSelect.value.trim();
   const pool = [preferred, 'gemini-3.5-flash-lite', initialModel, ...availableModels, 'gemini-1.5-flash', 'gemini-1.5-pro'];
   const modelsToTry = [...new Set(pool.filter(m => m))];
@@ -180,7 +182,7 @@ async function fetchWithModelFallback(text, subject, goal, depth, modKey, apiKey
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         showStatus(`Generando [${modKey.toUpperCase()}] con ${mTry}...`, 'info', true);
-        const data = await fetchModuleFromGemini(text, subject, goal, depth, modKey, apiKey, mTry, 20000);
+        const data = await fetchModuleFromGemini(text, images, subject, goal, depth, modKey, apiKey, mTry, 20000);
         if (data) return data;
       } catch (err) {
         lastErr = err;
@@ -206,7 +208,7 @@ async function generateAllModulesSequential() {
   const depth = el.depthSelect.value;
 
   if (!apiKey) return showStatus('Falta la Gemini API Key.', 'error', false);
-  if (!text) return showStatus('Escribe texto o sube un documento.', 'error', false);
+  if (!text && uploadedImagesBase64.length === 0) return showStatus('Escribe texto, sube un documento o añade imágenes.', 'error', false);
 
   el.resultCard.hidden = true;
   setControlsDisabled(true);
@@ -222,7 +224,7 @@ async function generateAllModulesSequential() {
   try {
     for (let i = 0; i < modules.length; i++) {
       const mod = modules[i];
-      const data = await fetchWithModelFallback(text, subject, goal, depth, mod.key, apiKey, preferredModel);
+      const data = await fetchWithModelFallback(text, uploadedImagesBase64, subject, goal, depth, mod.key, apiKey, preferredModel);
 
       if (data) {
         cachedModulesData[mod.key] = data;
@@ -269,14 +271,14 @@ function setControlsDisabled(disabled) {
   el.topModBtns.forEach(b => b.style.pointerEvents = disabled ? 'none' : 'auto');
 }
 
+// Manejo de carga de archivos (PDF, Docx, TXT)
 el.files.addEventListener('change', async (e) => {
   const files = Array.from(e.target.files);
-  el.fileList.innerHTML = '';
   let texts = [];
 
   for (const file of files) {
     const li = document.createElement('li');
-    li.textContent = `${file.name}`;
+    li.textContent = `📄 ${file.name}`;
     el.fileList.appendChild(li);
 
     try {
@@ -302,7 +304,7 @@ el.files.addEventListener('change', async (e) => {
       }
     } catch (err) {
       console.error(`Error al procesar el archivo ${file.name}:`, err);
-      alert(`No se pudo leer el archivo ${file.name}. Asegúrate de que no esté dañado.`);
+      alert(`No se pudo leer el archivo ${file.name}.`);
     }
   }
 
@@ -311,9 +313,28 @@ el.files.addEventListener('change', async (e) => {
   }
 });
 
+// Manejo de carga de imágenes para análisis multimodal con Gemini
+el.imageFiles.addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  
+  for (const file of files) {
+    const li = document.createElement('li');
+    li.textContent = `🖼️ ${file.name}`;
+    el.fileList.appendChild(li);
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const base64String = uploadEvent.target.result.split(',')[1];
+      const mimeType = file.type || 'image/jpeg';
+      uploadedImagesBase64.push({ inline_data: { mime_type: mimeType, data: base64String } });
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, apiKey, model, timeoutMs = 20000) {
+async function fetchModuleFromGemini(text, images, subject, goal, depth, moduleType, apiKey, model, timeoutMs = 25000) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const depthLimits = {
@@ -331,7 +352,13 @@ async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, api
     oral: `Genera ${limits.oral} preguntas abiertas profundas para examen oral sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos con este formato estricto: [{"id": 0, "question": "Pregunta detallada", "keyPoints": ["Punto clave 1", "Punto clave 2", "Punto clave 3"], "keywords": ["palabra1", "palabra2"]}]. Sin texto adicional.`
   };
 
-  const promptText = `${prompts[moduleType]}\n\nMaterial:\n${text.slice(0, 20000)}`;
+  const promptText = `${prompts[moduleType]}\n\nMaterial de estudio:\n${text.slice(0, 20000)}`;
+
+  // Armamos las partes del contenido permitiendo texto e imágenes (multimodal)
+  const contentParts = [{ text: promptText }];
+  if (images && images.length > 0) {
+    images.forEach(img => contentParts.push(img));
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -342,7 +369,7 @@ async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, api
       headers: { 'Content-Type': 'application/json' },
       signal: controller.signal,
       body: JSON.stringify({
-        contents: [{ parts: [{ text: promptText }] }],
+        contents: [{ parts: contentParts }],
         generationConfig: {
           response_mime_type: "application/json",
           maxOutputTokens: 4000,
@@ -367,7 +394,7 @@ async function fetchModuleFromGemini(text, subject, goal, depth, moduleType, api
     return JSON.parse(rawText);
   } catch (err) {
     clearTimeout(timer);
-    if (err.name === 'AbortError') throw new Error('Tiempo agotado (20s)');
+    if (err.name === 'AbortError') throw new Error('Tiempo agotado (25s)');
     throw err;
   }
 }
@@ -587,7 +614,8 @@ function renderResult(type, data) {
             currentScore++;
           }
         });
-        document.getElementById('liveScoreBadge').textContent = `Aciertos: ${currentScore} / ${data.length}`;
+        const badge = document.getElementById('liveScoreBadge');
+        if (badge) badge.textContent = `Aciertos: ${currentScore} / ${data.length}`;
       });
     });
 
@@ -649,14 +677,12 @@ function renderResult(type, data) {
         </div>
       `;
 
-      // Escuchar pregunta en voz alta
       document.getElementById('speakQuestionBtn').onclick = () => {
         const u = new SpeechSynthesisUtterance(q.question);
         u.lang = 'es-ES';
         window.speechSynthesis.speak(u);
       };
 
-      // Reconocimiento de voz (Micrófono)
       const recBtn = document.getElementById('recMicBtn');
       const textarea = document.getElementById('oralAnswerText');
 
@@ -688,13 +714,11 @@ function renderResult(type, data) {
         };
       };
 
-      // Borrar respuesta
       document.getElementById('clearOralBtn').onclick = () => {
         textarea.value = '';
         document.getElementById('oralFeedbackContainer').innerHTML = '';
       };
 
-      // Evaluar respuesta contra los puntos clave
       document.getElementById('evalOralBtn').onclick = () => {
         const userText = textarea.value.trim().toLowerCase();
         if (!userText) return alert('Escribe o dicta tu respuesta antes de evaluar.');
@@ -728,7 +752,6 @@ function renderResult(type, data) {
         document.getElementById('oralFeedbackContainer').scrollIntoView({ behavior: 'smooth' });
       };
 
-      // Siguiente pregunta
       document.getElementById('nextOralBtn').onclick = () => {
         idx = (idx + 1) % data.length;
         renderOral();
@@ -851,10 +874,9 @@ secretVlssBtn.addEventListener('click', () => {
     document.documentElement.setAttribute('data-theme', 'vlss55');
     matrixCanvas.style.display = 'block';
     initMatrixRain();
-    secretVlssBtn.textContent = ' desactivar';
+    secretVlssBtn.textContent = '⚡ VLSS55';
     secretVlssBtn.style.background = '#047857';
 
-    // Reproducir audio local garantizado por la interacción del botón
     if (vlssAudio) {
       vlssAudio.currentTime = 0;
       vlssAudio.play().catch(e => console.log("Reproducción bloqueada o archivo no encontrado:", e));
@@ -863,7 +885,7 @@ secretVlssBtn.addEventListener('click', () => {
     document.documentElement.removeAttribute('data-theme');
     matrixCanvas.style.display = 'none';
     clearInterval(matrixInterval);
-    secretVlssBtn.textContent = '⚡ Concentración VLSS55';
+    secretVlssBtn.textContent = '⚡ VLSS55';
     secretVlssBtn.style.background = '';
 
     if (vlssAudio) {
