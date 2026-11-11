@@ -49,6 +49,10 @@ const el = {
   files: document.getElementById('files'),
   imageFiles: document.getElementById('imageFiles'),
   filePreviewContainer: document.getElementById('filePreviewContainer'),
+  activeFileViewer: document.getElementById('activeFileViewer'),
+  viewerTitle: document.getElementById('viewerTitle'),
+  viewerContentBox: document.getElementById('viewerContentBox'),
+  closeViewerBtn: document.getElementById('closeViewerBtn'),
   genBtn: document.getElementById('genBtn'),
   saveTopicBtn: document.getElementById('saveTopicBtn'),
   status: document.getElementById('status'),
@@ -258,26 +262,52 @@ function setControlsDisabled(disabled) {
 function renderFilePreviews() {
   if (uploadedFilesList.length === 0) {
     el.filePreviewContainer.innerHTML = '';
+    el.activeFileViewer.hidden = true;
     return;
   }
 
   el.filePreviewContainer.innerHTML = uploadedFilesList.map((fileItem, idx) => {
     const thumbContent = fileItem.type === 'image' 
-      ? `<img src="${fileItem.src}" class="preview-thumb" alt="Vista previa">` 
+      ? `<img src="${fileItem.dataUrl || fileItem.src}" class="preview-thumb" alt="Vista previa">` 
       : `<div class="preview-thumb">📄</div>`;
 
     return `
-      <div class="preview-chip">
+      <div class="preview-chip" onclick="openFileViewer(${idx})">
         ${thumbContent}
         <div class="preview-info">
           <div class="preview-name" title="${fileItem.name}">${fileItem.name}</div>
-          <div class="preview-type">${fileItem.type === 'image' ? 'Imagen' : 'Documento'}</div>
+          <div class="preview-type">Clic para ver</div>
         </div>
-        <button class="preview-remove" onclick="removeUploadedFile(${idx})" title="Eliminar">✕</button>
+        <button class="preview-remove" onclick="event.stopPropagation(); removeUploadedFile(${idx})" title="Eliminar">✕</button>
       </div>
     `;
   }).join('');
 }
+
+window.openFileViewer = (index) => {
+  const item = uploadedFilesList[index];
+  if (!item) return;
+  displayFileInViewer(item);
+};
+
+function displayFileInViewer(item) {
+  el.viewerTitle.textContent = `Visualizando: ${item.name}`;
+  
+  if (item.type === 'image' || (item.dataUrl && item.dataUrl.startsWith('data:image'))) {
+    el.viewerContentBox.innerHTML = `<img src="${item.dataUrl || item.src}" alt="${item.name}">`;
+  } else if (item.dataUrl && item.dataUrl.startsWith('data:application/pdf')) {
+    el.viewerContentBox.innerHTML = `<embed src="${item.dataUrl}" type="application/pdf" width="100%" height="450px" style="border-radius: 8px; border: 1px solid var(--border);">`;
+  } else {
+    el.viewerContentBox.innerHTML = `<div style="width:100%; text-align:left; font-family:monospace; font-size:0.85rem; background:var(--card-bg); padding:16px; border-radius:8px; border:1px solid var(--border); white-space:pre-wrap; max-height:380px; overflow-y:auto; color:var(--text);"><strong>Contenido del documento (${item.name}):</strong>\n\n${item.extractedText || 'Sin texto previo.'}</div>`;
+  }
+
+  el.activeFileViewer.hidden = false;
+  el.activeFileViewer.scrollIntoView({ behavior: 'smooth' });
+}
+
+el.closeViewerBtn.addEventListener('click', () => {
+  el.activeFileViewer.hidden = true;
+});
 
 window.removeUploadedFile = (index) => {
   uploadedFilesList.splice(index, 1);
@@ -290,24 +320,36 @@ el.files.addEventListener('change', async (e) => {
 
   for (const file of files) {
     try {
+      let fileText = '';
+      const base64DataUrl = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target.result);
+        reader.readAsDataURL(file);
+      });
+
       if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = '';
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
-          fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+          fileText += textContent.items.map(item => item.str).join(' ') + '\n';
         }
-        texts.push(fullText);
       } else if (file.name.endsWith('.docx')) {
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-        texts.push(result.value);
+        fileText = result.value;
       } else {
-        texts.push(await file.text());
+        fileText = await file.text();
       }
-      uploadedFilesList.push({ name: file.name, type: 'doc' });
+
+      texts.push(fileText);
+      uploadedFilesList.push({
+        name: file.name,
+        type: 'doc',
+        dataUrl: base64DataUrl,
+        extractedText: fileText
+      });
     } catch (err) {
       alert(`No se pudo leer el archivo ${file.name}.`);
     }
@@ -331,6 +373,7 @@ el.imageFiles.addEventListener('change', (e) => {
         name: file.name,
         type: 'image',
         src: fullDataUrl,
+        dataUrl: fullDataUrl,
         payload: { inline_data: { mime_type: file.type || 'image/jpeg', data: base64String } }
       });
       renderFilePreviews();
@@ -341,11 +384,6 @@ el.imageFiles.addEventListener('change', (e) => {
 });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-async function fetchStudyVisualUrl(query) {
-  // Retornamos null para evitar enlaces rotos y mantener la interfaz limpia con tarjetas estilizadas
-  return null;
-  }
 
 async function fetchModuleFromGemini(text, images, subject, goal, depth, moduleType, apiKey, model, timeoutMs = 25000) {
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -427,11 +465,10 @@ async function renderResult(type, data) {
       <div class="concepts-grid" id="conceptsGridContainer">
     `;
 
-    for (const item of data) {
+    data.forEach(item => {
       const title = item.title || 'Concepto';
       const desc = item.desc || item;
       const relevance = item.relevance || 'Fundamental para el examen.';
-      const visualUrl = await fetchStudyVisualUrl(title + " " + desc);
 
       html += `
         <div class="concept-card" data-search="${title.toLowerCase()} ${desc.toLowerCase()}">
@@ -440,7 +477,6 @@ async function renderResult(type, data) {
               <div class="concept-title">${title}</div>
               <span class="concept-badge-exam">Examen</span>
             </div>
-            ${visualUrl ? `<div class="study-visual-box"><img src="${visualUrl}" alt="Esquema visual"></div>` : ''}
             <div class="concept-body">${desc}</div>
           </div>
           <div class="concept-footer-relevance">
@@ -448,7 +484,7 @@ async function renderResult(type, data) {
           </div>
         </div>
       `;
-    }
+    });
 
     html += `
       </div>
@@ -483,12 +519,8 @@ async function renderResult(type, data) {
     let masteredCount = 0;
     let animDirection = 'animate-slide-right';
 
-    const updateCardView = async () => {
+    const updateCardView = () => {
       const c = data[idx];
-      el.view.innerHTML = `<div class="flashcard-wrapper"><p style="text-align:center; color:var(--text-muted);">Cargando tarjeta e ilustración educativa...</p></div>`;
-      
-      const visualUrl = await fetchStudyVisualUrl(c.front);
-
       el.view.innerHTML = `
         <div class="flashcard-wrapper ${animDirection}">
           <div class="flashcard-top-bar">
@@ -503,7 +535,6 @@ async function renderResult(type, data) {
             <div class="fc-card-inner">
               <div class="fc-card-front">
                 <span class="fc-badge fc-badge-front">Pregunta / Concepto</span>
-                ${visualUrl ? `<div class="study-visual-box"><img src="${visualUrl}" alt="Referencia visual"></div>` : ''}
                 <div class="fc-main-text">${c.front}</div>
                 <span class="fc-hint-flip">Haz clic para ver respuesta</span>
               </div>
@@ -543,8 +574,6 @@ async function renderResult(type, data) {
   } else if (type === 'quiz') {
     el.resultTitle.textContent = 'Cuestionario de Opción Múltiple';
     const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-    el.view.innerHTML = `<div class="quiz-container"><p style="text-align:center; color:var(--text-muted);">Cargando cuestionario y esquemas visuales...</p></div>`;
-
     let html = `<div class="quiz-container">`;
     html += `
       <div class="quiz-progress-bar">
@@ -553,15 +582,11 @@ async function renderResult(type, data) {
       </div>
     `;
 
-    for (let i = 0; i < data.length; i++) {
-      const q = data[i];
-      const visualUrl = await fetchStudyVisualUrl(q.question);
-
+    data.forEach((q, i) => {
       html += `
         <div class="quiz-question-card">
           <span class="quiz-q-tag">Opción Múltiple • ${i + 1} de ${data.length}</span>
           <p class="quiz-q-title">${i + 1}. ${q.question}</p>
-          ${visualUrl ? `<div class="study-visual-box"><img src="${visualUrl}" alt="Esquema visual"></div>` : ''}
       `;
       q.options.forEach((opt, optIdx) => {
         const letter = letters[optIdx] || String.fromCharCode(65 + optIdx);
@@ -574,7 +599,7 @@ async function renderResult(type, data) {
         `;
       });
       html += `</div>`;
-    }
+    });
 
     html += `
       <div style="text-align: center; margin-top: 24px;">
@@ -728,18 +753,30 @@ async function renderResult(type, data) {
   }
 }
 
+// GUARDAR TEMA INCLUYENDO LOS ARCHIVOS ADJUNTOS EN FORMATO SNAPSHOT
 el.saveTopicBtn.addEventListener('click', () => {
   if (!currentGeneratedData) return;
   const topics = JSON.parse(localStorage.getItem('studyline_saved_topics') || '[]');
-  topics.unshift({
+  
+  const savedFilesSnapshot = uploadedFilesList.map(f => ({
+    name: f.name,
+    type: f.type,
+    dataUrl: f.dataUrl,
+    extractedText: f.extractedText || ''
+  }));
+
+  const newTopic = {
     id: Date.now(),
     date: new Date().toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
     ...currentGeneratedData,
-    allCachedData: cachedModulesData
-  });
+    allCachedData: cachedModulesData,
+    filesSnapshot: savedFilesSnapshot
+  };
+
+  topics.unshift(newTopic);
   localStorage.setItem('studyline_saved_topics', JSON.stringify(topics));
   renderSavedTopics();
-  alert('Tema guardado con éxito.');
+  alert('¡Tema y archivos guardados con éxito en el historial!');
 });
 
 function renderSavedTopics() {
@@ -751,15 +788,29 @@ function renderSavedTopics() {
     return;
   }
 
-  el.savedTopicsContainer.innerHTML = topics.map(t => `
-    <div class="topic-item">
-      <div class="topic-info" onclick="loadTopic(${t.id})">
-        <div class="topic-title">${t.subject}</div>
-        <div class="topic-meta">${t.moduleType.toUpperCase()} • ${t.depth} • ${t.date}</div>
+  el.savedTopicsContainer.innerHTML = topics.map(t => {
+    const hasFiles = t.filesSnapshot && t.filesSnapshot.length > 0;
+    return `
+      <div class="topic-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <div class="topic-info" onclick="loadTopic(${t.id})">
+          <div class="topic-title">${t.subject}</div>
+          <div class="topic-meta">${t.moduleType.toUpperCase()} • ${t.depth} • ${t.date}</div>
+        </div>
+        ${hasFiles ? `
+          <div style="display:flex; flex-direction:column; gap:4px; border-top: 1px solid var(--border); padding-top: 6px;">
+            ${t.filesSnapshot.map((file, fIdx) => `
+              <button onclick="loadSavedFile(${t.id}, ${fIdx})" style="background:var(--input-bg); color:var(--primary); border:1px solid var(--border); padding:5px 8px; font-size:0.75rem; border-radius:6px; text-align:left; cursor:pointer; font-weight:600;">
+                📂 Ver original: ${file.name}
+              </button>
+            `).join('')}
+          </div>
+        ` : ''}
+        <div style="display:flex; justify-content:flex-end;">
+          <button class="btn-del" onclick="deleteTopic(${t.id})">Eliminar</button>
+        </div>
       </div>
-      <button class="btn-del" onclick="deleteTopic(${t.id})">Eliminar</button>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 window.loadTopic = (id) => {
@@ -768,6 +819,18 @@ window.loadTopic = (id) => {
   if (!t) return;
   
   cachedModulesData = t.allCachedData || { [t.moduleType]: t.data };
+  
+  // Restauramos también los archivos guardados en el panel de trabajo actual para consultarlos
+  if (t.filesSnapshot) {
+    uploadedFilesList = t.filesSnapshot.map(f => ({
+      name: f.name,
+      type: f.type,
+      dataUrl: f.dataUrl,
+      extractedText: f.extractedText
+    }));
+    renderFilePreviews();
+  }
+
   el.topTopicSubtitle.textContent = `Tema: ${t.subject}`;
   el.bannerSubject.textContent = t.subject;
   el.bannerGoal.textContent = `Objetivo: ${t.goal || 'Estudio'}`;
@@ -775,6 +838,15 @@ window.loadTopic = (id) => {
   el.resultCard.hidden = false;
   renderResult(currentModule, cachedModulesData[currentModule] || t.data);
   el.resultCard.scrollIntoView({ behavior: 'smooth' });
+};
+
+window.loadSavedFile = (topicId, fileIndex) => {
+  const topics = JSON.parse(localStorage.getItem('studyline_saved_topics') || '[]');
+  const t = topics.find(item => item.id === topicId);
+  if (!t || !t.filesSnapshot || !t.filesSnapshot[fileIndex]) return;
+
+  const fileItem = t.filesSnapshot[fileIndex];
+  displayFileInViewer(fileItem);
 };
 
 window.deleteTopic = (id) => {
