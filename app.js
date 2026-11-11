@@ -801,3 +801,80 @@ window.deleteTopic = (id) => {
   localStorage.setItem('studyline_saved_topics', JSON.stringify(topics));
   renderSavedTopics();
 };
+
+// --- LÓGICA MODO SECRETO CONCENTRACIÓN VLSS55 (AUDIO LOCAL) ---
+const secretVlssBtn = document.getElementById('secretVlssBtn');
+const matrixCanvas = document.getElementById('matrixCanvas');
+let matrixInterval = null;
+let isVlssActive = false;
+
+function initMatrixRain() {
+  const ctx = matrixCanvas.getContext('2d');
+  matrixCanvas.width = window.innerWidth;
+  matrixCanvas.height = window.innerHeight;
+
+  const characters = '日ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const fontSize = 16;
+  const columns = matrixCanvas.width / fontSize;
+  const drops = [];
+
+  for (let x = 0; x < columns; x++) {
+    drops[x] = 1;
+  }
+
+  function draw() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
+
+    ctx.fillStyle = '#10b981';
+    ctx.font = fontSize + 'px monospace';
+
+    for (let i = 0; i < drops.length; i++) {
+      const text = characters.charAt(Math.floor(Math.random() * characters.length));
+      ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+      if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
+        drops[i] = 0;
+      }
+      drops[i]++;
+    }
+  }
+
+  matrixInterval = setInterval(draw, 33);
+}
+
+secretVlssBtn.addEventListener('click', () => {
+  isVlssActive = !isVlssActive;
+  const vlssAudio = document.getElementById('vlssAudio');
+
+  if (isVlssActive) {
+    document.documentElement.setAttribute('data-theme', 'vlss55');
+    matrixCanvas.style.display = 'block';
+    initMatrixRain();
+    secretVlssBtn.textContent = ' desactivar';
+    secretVlssBtn.style.background = '#047857';
+
+    // Reproducir audio local garantizado por la interacción del botón
+    if (vlssAudio) {
+      vlssAudio.currentTime = 0;
+      vlssAudio.play().catch(e => console.log("Reproducción bloqueada o archivo no encontrado:", e));
+    }
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    matrixCanvas.style.display = 'none';
+    clearInterval(matrixInterval);
+    secretVlssBtn.textContent = '⚡ Concentración VLSS55';
+    secretVlssBtn.style.background = '';
+
+    if (vlssAudio) {
+      vlssAudio.pause();
+    }
+  }
+});
+
+window.addEventListener('resize', () => {
+  if (isVlssActive && matrixCanvas) {
+    matrixCanvas.width = window.innerWidth;
+    matrixCanvas.height = window.innerHeight;
+  }
+});

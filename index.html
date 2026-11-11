@@ -27,10 +27,22 @@
           <button class="top-mod-btn" data-module="quiz">Cuestionario</button>
           <button class="top-mod-btn" data-module="oral">Examen Oral</button>
         </nav>
+        
+        <!-- Botón Secreto Concentración VLSS55 -->
+        <button class="secret-vlss-btn" id="secretVlssBtn" title="Activar Modo Concentración VLSS55">Concentración VLSS55</button>
+        
         <button class="theme-toggle-btn" id="themeToggleBtn" title="Cambiar modo oscuro/claro">🌙</button>
       </div>
     </div>
   </header>
+
+  <!-- Canvas para el fondo Matrix -->
+  <canvas id="matrixCanvas"></canvas>
+
+  <!-- Reproductor de audio nativo para Another Medium -->
+  <audio id="vlssAudio" loop preload="auto">
+    <source src="Another-Medium.mp3" type="audio/mpeg">
+  </audio>
 
   <div class="app-layout">
     <aside>
