@@ -578,61 +578,89 @@ async function renderResult(type, data) {
     html += `
       <div class="quiz-progress-bar">
         <span>Evaluación Interactiva (${data.length} preguntas)</span>
-        <span id="liveScoreBadge">Aciertos: 0 / ${data.length}</span>
+        <span id="liveScoreBadge">Cuestionario listo para responder</span>
       </div>
     `;
 
     data.forEach((q, i) => {
       html += `
-        <div class="quiz-question-card">
-          <span class="quiz-q-tag">Opción Múltiple • ${i + 1} de ${data.length}</span>
+        <div class="quiz-question-card" id="qCard-${i}">
+          <span class="quiz-q-tag">Pregunta ${i + 1} de ${data.length}</span>
           <p class="quiz-q-title">${i + 1}. ${q.question}</p>
       `;
       q.options.forEach((opt, optIdx) => {
         const letter = letters[optIdx] || String.fromCharCode(65 + optIdx);
         html += `
-          <label class="quiz-option-label">
-            <input type="radio" name="q${i}" value="${opt}" data-qid="${i}" data-ans="${encodeURIComponent(q.answer)}">
+          <label class="quiz-option-label" id="label-q${i}-${optIdx}">
+            <input type="radio" name="q${i}" value="${opt}" data-qid="${i}" data-correct="${encodeURIComponent(q.answer)}">
             <div class="quiz-letter-badge">${letter}</div>
             <span>${opt}</span>
           </label>
         `;
       });
+      // Contenedor individual de retroalimentación que aparecerá tras calificar
+      html += `<div id="feedback-q${i}" style="margin-top: 12px; font-size: 0.9rem; font-weight: 600;" hidden></div>`;
       html += `</div>`;
     });
 
     html += `
       <div style="text-align: center; margin-top: 24px;">
-        <button id="checkQuizBtn" style="padding: 14px 32px; font-size: 1.05rem;">Calificar Cuestionario</button>
+        <button id="checkQuizBtn" style="padding: 14px 32px; font-size: 1.05rem;">Calificar Cuestionario Completo</button>
       </div>
       <div id="qRes" style="margin-top:20px;"></div>
     </div>`;
 
     el.view.innerHTML = html;
 
+    // Actualizador dinámico del contador conforme selecciona opciones
     el.view.querySelectorAll('input[type="radio"]').forEach(input => {
       input.addEventListener('change', () => {
-        let currentScore = 0;
-        data.forEach((q, qIdx) => {
-          const selected = el.view.querySelector(`input[name="q${qIdx}"]:checked`);
-          if (selected && selected.value === q.answer) currentScore++;
-        });
+        const answeredCount = el.view.querySelectorAll('input[type="radio"]:checked').length;
         const badge = document.getElementById('liveScoreBadge');
-        if (badge) badge.textContent = `Aciertos: ${currentScore} / ${data.length}`;
+        if (badge) badge.textContent = `Preguntas respondidas: ${answeredCount} / ${data.length}`;
       });
     });
 
+    // Acción al dar clic en Calificar Cuestionario Completo
     document.getElementById('checkQuizBtn').onclick = () => {
       let score = 0;
+
       data.forEach((q, i) => {
         const sel = document.querySelector(`input[name="q${i}"]:checked`);
-        if (sel && sel.value === q.answer) score++;
+        const feedbackBox = document.getElementById(`feedback-q${i}`);
+        const parentCard = document.getElementById(`qCard-${i}`);
+        const correctVal = q.answer;
+
+        // Deshabilitar opciones una vez calificado
+        parentCard.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = true);
+
+        if (sel && sel.value === correctVal) {
+          score++;
+          sel.closest('.quiz-option-label').style.background = 'rgba(16, 185, 129, 0.2)';
+          sel.closest('.quiz-option-label').style.borderColor = 'var(--success)';
+          feedbackBox.innerHTML = `<span style="color: var(--success);">✨ ¡Correcto!</span>`;
+        } else {
+          if (sel) {
+            sel.closest('.quiz-option-label').style.background = 'rgba(239, 68, 68, 0.2)';
+            sel.closest('.quiz-option-label').style.borderColor = 'var(--danger)';
+          }
+          // Resaltar la respuesta correcta real
+          parentCard.querySelectorAll('input[type="radio"]').forEach(r => {
+            if (r.value === correctVal) {
+              r.closest('.quiz-option-label').style.background = 'rgba(16, 185, 129, 0.15)';
+              r.closest('.quiz-option-label').style.borderColor = 'var(--success)';
+            }
+          });
+          feedbackBox.innerHTML = `<span style="color: var(--danger);">❌ Incorrecto. La respuesta correcta era: <strong>${correctVal}</strong></span>`;
+        }
+        feedbackBox.hidden = false;
       });
+
       const pct = Math.round((score / data.length) * 100);
       document.getElementById('qRes').innerHTML = `
         <div style="padding: 18px 24px; background: var(--banner-bg); border-radius: 12px; border: 1px solid var(--banner-border); color: var(--primary); text-align: center; font-size: 1.15rem;">
           <strong>Calificación final: ${score} / ${data.length} (${pct}%)</strong>
-          <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 6px;">¡Excelente esfuerzo! Sigue practicando para dominar todos los conceptos.</p>
+          <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 6px;">¡Revisa los aciertos y las correcciones detalladas pregunta por pregunta arriba!</p>
         </div>
       `;
       document.getElementById('qRes').scrollIntoView({ behavior: 'smooth' });
