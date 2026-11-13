@@ -24,7 +24,7 @@ function initTheme() {
   if (manualPref !== null) {
     applyTheme(manualPref === 'dark');
   } else {
-    applyTheme(true); // Negro puro por defecto
+    applyTheme(true);
   }
 }
 
@@ -163,7 +163,6 @@ el.genBtn.addEventListener('click', async () => {
   await generateAllModulesSequential();
 });
 
-// Respaldo inteligente: Usa el último modelo exitoso primero y no vuelve a reiniciar desde cero
 async function fetchWithModelFallback(text, images, subject, goal, depth, modKey, apiKey, initialModel) {
   const preferred = el.modelSelect.value.trim();
   const pool = [lastSuccessfulModel, preferred, 'gemini-3.5-flash-lite', initialModel, ...availableModels, 'gemini-1.5-flash', 'gemini-1.5-pro'];
@@ -300,9 +299,9 @@ function displayFileInViewer(item) {
   if (item.type === 'image' || (item.dataUrl && item.dataUrl.startsWith('data:image'))) {
     el.viewerContentBox.innerHTML = `<img src="${item.dataUrl || item.src}" alt="${item.name}">`;
   } else if (item.dataUrl && item.dataUrl.startsWith('data:application/pdf')) {
-    el.viewerContentBox.innerHTML = `<embed src="${item.dataUrl}" type="application/pdf" width="100%" height="420px" style="border-radius: 8px; border: 1px solid var(--panel-border);">`;
+    el.viewerContentBox.innerHTML = `<embed src="${item.dataUrl}" type="application/pdf" width="100%" height="380px" style="border-radius: 8px;">`;
   } else {
-    el.viewerContentBox.innerHTML = `<div style="width:100%; text-align:left; font-family:monospace; font-size:0.82rem; background:var(--bg-main); padding:14px; border-radius:8px; border:1px solid var(--panel-border); white-space:pre-wrap; max-height:350px; overflow-y:auto; color:var(--text-main);"><strong>Contenido del documento (${item.name}):</strong>\n\n${item.extractedText || 'Sin texto previo.'}</div>`;
+    el.viewerContentBox.innerHTML = `<div style="width:100%; text-align:left; font-family:monospace; font-size:0.8rem; background:var(--bg-main); padding:12px; border-radius:8px; white-space:pre-wrap; max-height:300px; overflow-y:auto; color:var(--text-main);"><strong>Contenido (${item.name}):</strong>\n\n${item.extractedText || 'Sin texto.'}</div>`;
   }
 
   el.activeFileViewer.hidden = false;
@@ -459,8 +458,8 @@ async function renderResult(type, data) {
     const conceptsList = data.concepts || (Array.isArray(data) ? data : []);
 
     let html = `
-      <div class="love-banner animate-fade-in">
-        <span style="font-size: 1.3rem;">❤️</span>
+      <div class="love-banner">
+        <span style="font-size: 1.2rem;">❤️</span>
         <div><strong>Para Ti:</strong> ¡Tú puedes con todo, mi amor! Cada minuto que dedicas a estudiar te acerca a tu meta. Eres brillante, confía en tu preparación. ✨</div>
       </div>
 
@@ -471,8 +470,8 @@ async function renderResult(type, data) {
 
       <div class="summary-header-row">
         <div>
-          <h3 style="font-size: 1.1rem; font-weight: 800;">Conceptos Clave Indispensables</h3>
-          <p style="font-size: 0.82rem; color: var(--text-muted);">${conceptsList.length} términos analizados de tus apuntes</p>
+          <h3 style="font-size: 1.05rem; font-weight: 800;">Conceptos Clave Indispensables</h3>
+          <p style="font-size: 0.8rem; color: var(--text-muted);">${conceptsList.length} términos analizados</p>
         </div>
         <input type="text" id="conceptSearch" class="summary-search-input" placeholder="Buscar término...">
       </div>
@@ -504,12 +503,12 @@ async function renderResult(type, data) {
       </div>
       <div class="action-cta-banner">
         <div>
-          <div style="font-weight: 700; font-size: 0.98rem;">¿Lista para poner a prueba tu conocimiento?</div>
-          <div style="font-size: 0.8rem; color: var(--text-muted);">Evalúa tu comprensión con tarjetas o un cuestionario interactivo.</div>
+          <div style="font-weight: 700; font-size: 0.92rem;">¿Lista para poner a prueba tu conocimiento?</div>
+          <div style="font-size: 0.78rem; color: var(--text-muted);">Evalúa tu comprensión con tarjetas o un cuestionario.</div>
         </div>
         <div style="display:flex; gap:8px;">
-          <button id="goToCardsBtn" class="render-btn-secondary" style="padding: 8px 14px; font-size:0.82rem;">Repasar Tarjetas</button>
-          <button id="goToQuizBtn" class="render-btn-primary" style="padding: 8px 14px; font-size:0.82rem;">Hacer Cuestionario</button>
+          <button id="goToCardsBtn" class="render-btn-secondary" style="padding: 8px 12px; font-size:0.8rem;">Tarjetas</button>
+          <button id="goToQuizBtn" class="render-btn-primary" style="padding: 8px 12px; font-size:0.8rem; width:auto;">Cuestionario</button>
         </div>
       </div>
     `;
@@ -531,18 +530,17 @@ async function renderResult(type, data) {
     el.resultTitle.textContent = 'Tarjetas Flashcards';
     let idx = 0;
     let masteredCount = 0;
-    let animDirection = 'animate-slide-right';
 
     const updateCardView = () => {
       const c = data[idx];
       el.view.innerHTML = `
-        <div class="flashcard-wrapper ${animDirection}">
+        <div class="flashcard-wrapper">
           <div class="flashcard-top-bar">
             <div class="fc-counter-badge">
               <span>Tarjeta ${idx + 1} de ${data.length}</span>
-              <span class="fc-mastered-chip">${masteredCount} / ${data.length} dominadas</span>
+              <span class="fc-mastered-chip">${masteredCount} dominadas</span>
             </div>
-            <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Haz clic en la tarjeta para voltear</div>
+            <div style="font-size:0.78rem; color:var(--text-muted);">Toca para voltear</div>
           </div>
 
           <div class="fc-card-3d" id="fcCard3d">
@@ -550,19 +548,19 @@ async function renderResult(type, data) {
               <div class="fc-card-front">
                 <span class="fc-badge fc-badge-front">Pregunta / Concepto</span>
                 <div class="fc-main-text">${c.front}</div>
-                <span class="fc-hint-flip">Haz clic para ver respuesta</span>
+                <span class="fc-hint-flip">Toca para ver respuesta</span>
               </div>
               <div class="fc-card-back">
                 <span class="fc-badge fc-badge-back">Respuesta Correcta</span>
                 <div class="fc-main-text">${c.back}</div>
-                <span class="fc-hint-flip">Haz clic para volver a la pregunta</span>
+                <span class="fc-hint-flip">Toca para volver</span>
               </div>
             </div>
           </div>
 
           <div class="fc-controls-row">
             <button class="btn-fc-nav" id="prevCardBtn">Anterior</button>
-            <button class="btn-fc-flip" id="flipCardBtn">Girar Tarjeta</button>
+            <button class="btn-fc-flip" id="flipCardBtn">Girar</button>
             <button class="btn-fc-master" id="masterCardBtn">¡Me la sé!</button>
             <button class="btn-fc-nav" id="nextCardBtn">Siguiente</button>
           </div>
@@ -571,28 +569,25 @@ async function renderResult(type, data) {
 
       const card3d = document.getElementById('fcCard3d');
       const flipBtn = document.getElementById('flipCardBtn');
-      const toggleFlip = () => {
-        card3d.classList.toggle('flipped');
-        flipBtn.textContent = card3d.classList.contains('flipped') ? 'Ver Pregunta' : 'Girar Tarjeta';
-      };
+      const toggleFlip = () => card3d.classList.toggle('flipped');
 
       card3d.onclick = toggleFlip;
       flipBtn.onclick = toggleFlip;
 
-      document.getElementById('prevCardBtn').onclick = () => { animDirection = 'animate-slide-left'; idx = (idx - 1 + data.length) % data.length; updateCardView(); };
-      document.getElementById('nextCardBtn').onclick = () => { animDirection = 'animate-slide-right'; idx = (idx + 1) % data.length; updateCardView(); };
-      document.getElementById('masterCardBtn').onclick = () => { animDirection = 'animate-slide-right'; masteredCount = Math.min(data.length, masteredCount + 1); idx = (idx + 1) % data.length; updateCardView(); };
+      document.getElementById('prevCardBtn').onclick = () => { idx = (idx - 1 + data.length) % data.length; updateCardView(); };
+      document.getElementById('nextCardBtn').onclick = () => { idx = (idx + 1) % data.length; updateCardView(); };
+      document.getElementById('masterCardBtn').onclick = () => { masteredCount = Math.min(data.length, masteredCount + 1); idx = (idx + 1) % data.length; updateCardView(); };
     };
 
     updateCardView();
   } else if (type === 'quiz') {
     el.resultTitle.textContent = 'Cuestionario de Opción Múltiple';
     const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-    let html = `<div class="quiz-container animate-fade-in">`;
+    let html = `<div class="quiz-container">`;
     html += `
       <div class="quiz-progress-bar">
-        <span>Evaluación Interactiva (${data.length} preguntas)</span>
-        <span id="liveScoreBadge">Cuestionario listo</span>
+        <span>Evaluación (${data.length} preguntas)</span>
+        <span id="liveScoreBadge">Listo</span>
       </div>
     `;
 
@@ -612,15 +607,15 @@ async function renderResult(type, data) {
           </label>
         `;
       });
-      html += `<div id="feedback-q${i}" style="margin-top: 10px; font-size: 0.85rem; font-weight: 600;" hidden></div>`;
+      html += `<div id="feedback-q${i}" style="margin-top: 8px; font-size: 0.82rem; font-weight: 600;" hidden></div>`;
       html += `</div>`;
     });
 
     html += `
-      <div style="text-align: center; margin-top: 20px;">
-        <button id="checkQuizBtn" class="render-btn-primary" style="padding: 12px 28px; font-size: 0.98rem;">Calificar Cuestionario Completo</button>
+      <div style="text-align: center; margin-top: 18px;">
+        <button id="checkQuizBtn" class="render-btn-primary" style="padding: 12px 24px; font-size: 0.92rem; width:100%;">Calificar Cuestionario</button>
       </div>
-      <div id="qRes" style="margin-top:16px;"></div>
+      <div id="qRes" style="margin-top:14px;"></div>
     </div>`;
 
     el.view.innerHTML = html;
@@ -660,16 +655,15 @@ async function renderResult(type, data) {
               r.closest('.quiz-option-label').style.borderColor = 'var(--success)';
             }
           });
-          feedbackBox.innerHTML = `<span style="color: var(--danger);">❌ Incorrecto. La respuesta correcta era: <strong>${correctVal}</strong></span>`;
+          feedbackBox.innerHTML = `<span style="color: var(--danger);">❌ Respuesta correcta: <strong>${correctVal}</strong></span>`;
         }
         feedbackBox.hidden = false;
       });
 
       const pct = Math.round((score / data.length) * 100);
       document.getElementById('qRes').innerHTML = `
-        <div style="padding: 16px 20px; background: rgba(99, 102, 241, 0.08); border-radius: 11px; border: 1px solid rgba(99, 102, 241, 0.25); color: var(--primary); text-align: center; font-size: 1.05rem;" class="animate-fade-in">
+        <div style="padding: 14px; background: rgba(99, 102, 241, 0.08); border-radius: 10px; border: 1px solid rgba(99, 102, 241, 0.25); color: var(--primary); text-align: center; font-size: 0.98rem;">
           <strong>Calificación final: ${score} / ${data.length} (${pct}%)</strong>
-          <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">¡Revisa los aciertos y correcciones detalladas arriba!</p>
         </div>
       `;
       document.getElementById('qRes').scrollIntoView({ behavior: 'smooth' });
@@ -681,10 +675,10 @@ async function renderResult(type, data) {
     const renderOral = () => {
       const q = data[idx];
       el.view.innerHTML = `
-        <div class="oral-container animate-fade-in">
+        <div class="oral-container">
           <div class="oral-meta-header">
             <span class="oral-difficulty-badge">Pregunta ${idx + 1} de ${data.length}</span>
-            <button id="speakQuestionBtn" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:1.05rem;" title="Escuchar pregunta">🔊</button>
+            <button id="speakQuestionBtn" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:1rem;" title="Escuchar">🔊</button>
           </div>
 
           <h2 class="oral-question-title">${q.question}</h2>
@@ -696,20 +690,20 @@ async function renderResult(type, data) {
             </ul>
           </div>
 
-          <div style="font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
-            Tu respuesta oral (usa el micrófono o escribe):
+          <div style="font-size: 0.8rem; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
+            Tu respuesta oral (micrófono o texto):
           </div>
 
           <div class="oral-input-wrapper">
-            <textarea id="oralAnswerText" class="oral-textarea" placeholder="Habla por el micrófono o redacta tu respuesta..."></textarea>
-            <button id="recMicBtn" class="oral-mic-btn" title="Hablar">🎙️</button>
+            <textarea id="oralAnswerText" class="oral-textarea" placeholder="Habla o escribe tu respuesta..."></textarea>
+            <button id="recMicBtn" class="oral-mic-btn" title="Micrófono">🎙️</button>
           </div>
 
           <div class="oral-footer-actions">
-            <button id="clearOralBtn" style="background:transparent; color:var(--text-muted); border:none; font-weight:600; cursor:pointer; font-size:0.85rem;">Borrar respuesta</button>
-            <div style="display:flex; gap:8px;">
-              <button id="nextOralBtn" class="render-btn-secondary" style="padding: 8px 14px; font-size:0.82rem;">Siguiente pregunta</button>
-              <button id="evalOralBtn" class="render-btn-primary" style="padding: 8px 16px; font-size:0.82rem;">Evaluar Respuesta</button>
+            <button id="clearOralBtn" style="background:transparent; color:var(--text-muted); border:none; font-weight:600; cursor:pointer; font-size:0.8rem;">Borrar</button>
+            <div style="display:flex; gap:6px;">
+              <button id="nextOralBtn" class="render-btn-secondary" style="padding: 8px 12px; font-size:0.8rem;">Siguiente</button>
+              <button id="evalOralBtn" class="render-btn-primary" style="padding: 8px 14px; font-size:0.8rem; width:auto;">Evaluar</button>
             </div>
           </div>
 
@@ -728,7 +722,7 @@ async function renderResult(type, data) {
 
       recBtn.onclick = () => {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return alert('Tu navegador no soporta reconocimiento de voz.');
+        if (!SR) return alert('Reconocimiento de voz no soportado.');
         const r = new SR();
         r.lang = 'es-ES';
         r.start();
@@ -750,7 +744,7 @@ async function renderResult(type, data) {
 
       document.getElementById('evalOralBtn').onclick = () => {
         const userText = textarea.value.trim().toLowerCase();
-        if (!userText) return alert('Escribe o dicta tu respuesta antes de evaluar.');
+        if (!userText) return alert('Escribe o dicta tu respuesta.');
 
         const points = q.keyPoints || q.keywords || [];
         const matchedPoints = points.filter(p => {
@@ -761,15 +755,11 @@ async function renderResult(type, data) {
         const scorePct = Math.round((matchedPoints.length / points.length) * 100);
 
         document.getElementById('oralFeedbackContainer').innerHTML = `
-          <div class="oral-feedback-card animate-fade-in">
-            <h3 style="font-size: 0.98rem; font-weight: 700; margin-bottom: 6px; color: var(--primary);">
-              Evaluación del Profesor (${scorePct}% de cobertura)
+          <div class="oral-feedback-card">
+            <h3 style="font-size: 0.92rem; font-weight: 700; margin-bottom: 6px; color: var(--primary);">
+              Evaluación (${scorePct}% de cobertura)
             </h3>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
-              ${scorePct >= 75 ? '¡Excelente dominio del tema! Explicaste los puntos principales con claridad.' : 'Buen intento, pero te faltaron algunos detalles clave.'}
-            </p>
-            <div style="font-size: 0.8rem; font-weight: 600;">Puntos detectados:</div>
-            <ul style="margin-top: 4px; padding-left: 16px; font-size: 0.82rem;">
+            <ul style="margin-top: 4px; padding-left: 16px; font-size: 0.8rem;">
               ${points.map(p => {
                 const found = matchedPoints.includes(p);
                 return `<li style="color: ${found ? 'var(--success)' : 'var(--warning)'};">${found ? '✓' : '✗'} ${p}</li>`;
@@ -812,7 +802,7 @@ el.saveTopicBtn.addEventListener('click', () => {
   topics.unshift(newTopic);
   localStorage.setItem('studyline_saved_topics', JSON.stringify(topics));
   renderSavedTopics();
-  alert('¡Tema guardado con éxito en el historial!');
+  alert('¡Tema guardado con éxito!');
 });
 
 function renderSavedTopics() {
@@ -820,23 +810,23 @@ function renderSavedTopics() {
   el.savedCountBadge.textContent = topics.length;
 
   if (topics.length === 0) {
-    el.savedTopicsContainer.innerHTML = '<p class="empty-notice">No hay temas guardados aún.</p>';
+    el.savedTopicsContainer.innerHTML = '<p class="empty-notice">No hay temas guardados.</p>';
     return;
   }
 
   el.savedTopicsContainer.innerHTML = topics.map(t => {
     const hasFiles = t.filesSnapshot && t.filesSnapshot.length > 0;
     return `
-      <div class="topic-item animate-fade-in" style="flex-direction: column; align-items: stretch; gap: 6px;">
+      <div class="topic-item" style="flex-direction: column; align-items: stretch; gap: 6px;">
         <div class="topic-info" onclick="loadTopic(${t.id})">
           <div class="topic-title">${t.subject}</div>
-          <div class="topic-meta">${t.moduleType.toUpperCase()} • ${t.depth} • ${t.date}</div>
+          <div class="topic-meta">${t.moduleType.toUpperCase()} • ${t.date}</div>
         </div>
         ${hasFiles ? `
           <div style="display:flex; flex-direction:column; gap:4px; border-top: 1px solid var(--panel-border); padding-top: 6px;">
             ${t.filesSnapshot.map((file, fIdx) => `
-              <button onclick="loadSavedFile(${t.id}, ${fIdx})" style="background:var(--bg-main); color:var(--primary); border:1px solid var(--panel-border); padding:4px 8px; font-size:0.7rem; border-radius:6px; text-align:left; cursor:pointer; font-weight:600;">
-                📂 Ver: ${file.name}
+              <button onclick="loadSavedFile(${t.id}, ${fIdx})" style="background:var(--bg-main); color:var(--primary); border:1px solid var(--panel-border); padding:3px 6px; font-size:0.68rem; border-radius:4px; text-align:left; cursor:pointer;">
+                📂 ${file.name}
               </button>
             `).join('')}
           </div>
