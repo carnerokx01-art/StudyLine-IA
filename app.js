@@ -5,16 +5,17 @@ let currentGeneratedData = null;
 let availableModels = ['gemini-3.5-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 let cachedModulesData = {};
 let uploadedFilesList = [];
+let lastSuccessfulModel = null; 
 
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 
 function applyTheme(isDark) {
   if (isDark) {
-    document.documentElement.setAttribute('data-theme', 'dark');
-    themeToggleBtn.textContent = '☀️';
-  } else {
     document.documentElement.removeAttribute('data-theme');
     themeToggleBtn.textContent = '🌙';
+  } else {
+    document.documentElement.setAttribute('data-theme', 'light');
+    themeToggleBtn.textContent = '☀️';
   }
 }
 
@@ -23,16 +24,15 @@ function initTheme() {
   if (manualPref !== null) {
     applyTheme(manualPref === 'dark');
   } else {
-    const currentHour = new Date().getHours();
-    applyTheme(currentHour >= 17 || currentHour < 7);
+    applyTheme(true); // Negro puro por defecto
   }
 }
 
 themeToggleBtn.addEventListener('click', () => {
-  const isCurrentlyDark = document.documentElement.hasAttribute('data-theme');
-  const newThemeState = !isCurrentlyDark;
-  applyTheme(newThemeState);
-  localStorage.setItem('studyline_theme', newThemeState ? 'dark' : 'light');
+  const isCurrentlyLight = document.documentElement.hasAttribute('data-theme');
+  const newDarkState = isCurrentlyLight;
+  applyTheme(newDarkState);
+  localStorage.setItem('studyline_theme', newDarkState ? 'dark' : 'light');
 });
 
 initTheme();
@@ -59,7 +59,7 @@ const el = {
   resultCard: document.getElementById('resultCard'),
   resultTitle: document.getElementById('resultTitle'),
   view: document.getElementById('view'),
-  topModBtns: document.querySelectorAll('.top-mod-btn'),
+  navTabBtns: document.querySelectorAll('.nav-tab-btn'),
   savedTopicsContainer: document.getElementById('savedTopicsContainer'),
   savedCountBadge: document.getElementById('savedCountBadge'),
   topTopicSubtitle: document.getElementById('topTopicSubtitle'),
@@ -89,8 +89,8 @@ el.saveKeyBtn.addEventListener('click', () => {
 });
 
 async function fetchAvailableModels(key) {
-  el.keyStatus.textContent = 'Buscando modelos Gemini nativos...';
-  el.keyStatus.style.color = '#0369a1';
+  el.keyStatus.textContent = 'Buscando modelos Gemini...';
+  el.keyStatus.style.color = '#38bdf8';
   
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
@@ -105,13 +105,13 @@ async function fetchAvailableModels(key) {
       return name.toLowerCase().startsWith('gemini-') && m.supportedGenerationMethods?.includes('generateContent');
     });
 
-    if (validModels.length === 0) throw new Error('No se encontraron modelos Gemini compatibles.');
+    if (validModels.length === 0) throw new Error('No se encontraron modelos compatibles.');
 
     availableModels = validModels.map(m => m.name.replace('models/', ''));
     availableModels.sort((a, b) => (a.includes('3.5-flash-lite') ? -1 : 1));
 
     el.modelSelect.innerHTML = availableModels.map(m => `<option value="${m}">${m}</option>`).join('');
-    updateKeyStatus(key, true, `${availableModels.length} modelos Gemini listos`);
+    updateKeyStatus(key, true, `${availableModels.length} modelos listos`);
   } catch (err) {
     availableModels = ['gemini-3.5-flash-lite', 'gemini-1.5-flash', 'gemini-1.5-pro'];
     el.modelSelect.innerHTML = availableModels.map(m => `<option value="${m}">${m}</option>`).join('');
@@ -121,20 +121,20 @@ async function fetchAvailableModels(key) {
 
 function updateKeyStatus(key, isValid, customMsg = '') {
   if (key && isValid) {
-    el.keyStatus.textContent = `Clave activa: ${customMsg}`;
+    el.keyStatus.textContent = `✦ Activa: ${customMsg}`;
     el.keyStatus.style.color = 'var(--success)';
   } else if (key) {
-    el.keyStatus.textContent = `Clave guardada: ${customMsg}`;
+    el.keyStatus.textContent = `✦ Guardada: ${customMsg}`;
     el.keyStatus.style.color = 'var(--warning)';
   } else {
-    el.keyStatus.textContent = `Sin Clave: guarda tu Gemini API Key para comenzar.`;
+    el.keyStatus.textContent = `Introduce tu Gemini API Key para comenzar.`;
     el.keyStatus.style.color = 'var(--danger)';
     el.modelSelect.innerHTML = '<option value="">Sin clave configurada</option>';
   }
 }
 
 function showStatus(msg, type = 'info', showLoadingSpinner = true) {
-  el.status.className = type;
+  el.status.className = `status-banner ${type}`;
   el.status.style.display = 'flex';
   el.status.innerHTML = showLoadingSpinner && type === 'info' 
     ? `<span class="spinner"></span><span>${msg}</span>` 
@@ -145,9 +145,9 @@ function hideStatus() {
   el.status.style.display = 'none';
 }
 
-el.topModBtns.forEach(btn => {
+el.navTabBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    el.topModBtns.forEach(b => b.classList.remove('active'));
+    el.navTabBtns.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     currentModule = btn.dataset.module;
 
@@ -163,9 +163,10 @@ el.genBtn.addEventListener('click', async () => {
   await generateAllModulesSequential();
 });
 
+// Respaldo inteligente: Usa el último modelo exitoso primero y no vuelve a reiniciar desde cero
 async function fetchWithModelFallback(text, images, subject, goal, depth, modKey, apiKey, initialModel) {
   const preferred = el.modelSelect.value.trim();
-  const pool = [preferred, 'gemini-3.5-flash-lite', initialModel, ...availableModels, 'gemini-1.5-flash', 'gemini-1.5-pro'];
+  const pool = [lastSuccessfulModel, preferred, 'gemini-3.5-flash-lite', initialModel, ...availableModels, 'gemini-1.5-flash', 'gemini-1.5-pro'];
   const modelsToTry = [...new Set(pool.filter(m => m))];
 
   let lastErr = null;
@@ -173,9 +174,12 @@ async function fetchWithModelFallback(text, images, subject, goal, depth, modKey
   for (const mTry of modelsToTry) {
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        showStatus(`Generando [${modKey.toUpperCase()}] con ${mTry}...`, 'info', true);
+        showStatus(`Procesando [${modKey.toUpperCase()}] con ${mTry}...`, 'info', true);
         const data = await fetchModuleFromGemini(text, images, subject, goal, depth, modKey, apiKey, mTry, 25000);
-        if (data) return data;
+        if (data) {
+          lastSuccessfulModel = mTry; 
+          return data;
+        }
       } catch (err) {
         lastErr = err;
         if (err.message?.includes('429') || err.message?.includes('limit')) {
@@ -208,7 +212,7 @@ async function generateAllModulesSequential() {
   cachedModulesData = {};
 
   const modules = [
-    { key: 'summary', name: 'Resumen' },
+    { key: 'summary', name: 'Resumen y Conceptos' },
     { key: 'cards', name: 'Tarjetas' },
     { key: 'quiz', name: 'Cuestionario' },
     { key: 'oral', name: 'Examen Oral' }
@@ -223,7 +227,7 @@ async function generateAllModulesSequential() {
       } else {
         throw new Error(`No se pudo generar el módulo ${mod.name}`);
       }
-      await sleep(500);
+      await sleep(400);
     }
 
     currentGeneratedData = {
@@ -231,7 +235,7 @@ async function generateAllModulesSequential() {
       data: cachedModulesData[currentModule] || cachedModulesData['summary']
     };
 
-    el.topTopicSubtitle.textContent = `Tema: ${subject}`;
+    el.topTopicSubtitle.textContent = subject;
     el.bannerSubject.textContent = subject;
     el.bannerGoal.textContent = `Objetivo: ${goal}`;
     el.studyBanner.hidden = false;
@@ -256,7 +260,7 @@ async function processModuleRequest(moduleType) {
 
 function setControlsDisabled(disabled) {
   el.genBtn.disabled = disabled;
-  el.topModBtns.forEach(b => b.style.pointerEvents = disabled ? 'none' : 'auto');
+  el.navTabBtns.forEach(b => b.style.pointerEvents = disabled ? 'none' : 'auto');
 }
 
 function renderFilePreviews() {
@@ -296,9 +300,9 @@ function displayFileInViewer(item) {
   if (item.type === 'image' || (item.dataUrl && item.dataUrl.startsWith('data:image'))) {
     el.viewerContentBox.innerHTML = `<img src="${item.dataUrl || item.src}" alt="${item.name}">`;
   } else if (item.dataUrl && item.dataUrl.startsWith('data:application/pdf')) {
-    el.viewerContentBox.innerHTML = `<embed src="${item.dataUrl}" type="application/pdf" width="100%" height="450px" style="border-radius: 8px; border: 1px solid var(--border);">`;
+    el.viewerContentBox.innerHTML = `<embed src="${item.dataUrl}" type="application/pdf" width="100%" height="420px" style="border-radius: 8px; border: 1px solid var(--panel-border);">`;
   } else {
-    el.viewerContentBox.innerHTML = `<div style="width:100%; text-align:left; font-family:monospace; font-size:0.85rem; background:var(--card-bg); padding:16px; border-radius:8px; border:1px solid var(--border); white-space:pre-wrap; max-height:380px; overflow-y:auto; color:var(--text);"><strong>Contenido del documento (${item.name}):</strong>\n\n${item.extractedText || 'Sin texto previo.'}</div>`;
+    el.viewerContentBox.innerHTML = `<div style="width:100%; text-align:left; font-family:monospace; font-size:0.82rem; background:var(--bg-main); padding:14px; border-radius:8px; border:1px solid var(--panel-border); white-space:pre-wrap; max-height:350px; overflow-y:auto; color:var(--text-main);"><strong>Contenido del documento (${item.name}):</strong>\n\n${item.extractedText || 'Sin texto previo.'}</div>`;
   }
 
   el.activeFileViewer.hidden = false;
@@ -397,7 +401,7 @@ async function fetchModuleFromGemini(text, images, subject, goal, depth, moduleT
   const limits = depthLimits[depth] || depthLimits.medio;
 
   const prompts = {
-    summary: `Genera exactamente ${limits.summary} conceptos clave detallados sobre "${subject}" (Objetivo: ${goal}). Devuelve ÚNICAMENTE un array JSON válido de objetos con este formato estricto: [{"title": "Nombre del Concepto", "desc": "Descripción detallada", "relevance": "Por qué es importante"}]. Sin texto adicional ni formato markdown extra.`,
+    summary: `Genera un análisis completo sobre "${subject}" (Objetivo: ${goal}). Devuelve ÚNICAMENTE un objeto JSON válido con este formato estricto: {"generalSummary": "Un párrafo completo y detallado explicando el resumen general del tema y su contexto principal.", "concepts": [{"title": "Nombre del Concepto", "desc": "Descripción detallada", "relevance": "Por qué es importante"}], con exactamente ${limits.summary} conceptos clave. Sin texto adicional ni formato markdown extra.`,
     cards: `Genera ${limits.cards} tarjetas de estudio detalladas para "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"front": "Pregunta o Concepto", "back": "Respuesta o Definición"}]. Sin texto adicional.`,
     quiz: `Genera ${limits.quiz} preguntas completas de opción múltiple sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos: [{"id": 0, "question": "Pregunta", "options": ["Opción A", "Opción B", "Opción C", "Opción D"], "answer": "Opción exacta"}]. Sin texto adicional.`,
     oral: `Genera ${limits.oral} preguntas abiertas profundas para examen oral sobre "${subject}". Devuelve ÚNICAMENTE un array JSON válido de objetos con este formato estricto: [{"id": 0, "question": "Pregunta detallada", "keyPoints": ["Punto clave 1", "Punto clave 2", "Punto clave 3"], "keywords": ["palabra1", "palabra2"]}]. Sin texto adicional.`
@@ -433,7 +437,7 @@ async function fetchModuleFromGemini(text, images, subject, goal, depth, moduleT
     let rawText = resData.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) throw new Error('Respuesta vacía del servidor.');
 
-    const match = rawText.match(/\[[\s\S]*\]/);
+    const match = rawText.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
     if (match) rawText = match[0];
 
     return JSON.parse(rawText);
@@ -450,22 +454,32 @@ async function renderResult(type, data) {
 
   if (type === 'summary') {
     el.resultTitle.textContent = 'Resumen y Conceptos Clave';
+    
+    const generalSummaryText = data.generalSummary || 'Resumen general no disponible.';
+    const conceptsList = data.concepts || (Array.isArray(data) ? data : []);
+
     let html = `
-      <div class="love-banner">
-        <span style="font-size: 1.4rem;">❤️</span>
+      <div class="love-banner animate-fade-in">
+        <span style="font-size: 1.3rem;">❤️</span>
         <div><strong>Para Ti:</strong> ¡Tú puedes con todo, mi amor! Cada minuto que dedicas a estudiar te acerca a tu meta. Eres brillante, confía en tu preparación. ✨</div>
       </div>
+
+      <div class="general-summary-box">
+        <h4>📖 Resumen General del Tema</h4>
+        <p>${generalSummaryText}</p>
+      </div>
+
       <div class="summary-header-row">
         <div>
-          <h3 style="font-size: 1.2rem; font-weight: 800;">Conceptos Clave Indispensables</h3>
-          <p style="font-size: 0.88rem; color: var(--text-muted);">${data.length} términos analizados de tus apuntes</p>
+          <h3 style="font-size: 1.1rem; font-weight: 800;">Conceptos Clave Indispensables</h3>
+          <p style="font-size: 0.82rem; color: var(--text-muted);">${conceptsList.length} términos analizados de tus apuntes</p>
         </div>
-        <input type="text" id="conceptSearch" class="summary-search-input" placeholder="Buscar término o definición...">
+        <input type="text" id="conceptSearch" class="summary-search-input" placeholder="Buscar término...">
       </div>
       <div class="concepts-grid" id="conceptsGridContainer">
     `;
 
-    data.forEach(item => {
+    conceptsList.forEach(item => {
       const title = item.title || 'Concepto';
       const desc = item.desc || item;
       const relevance = item.relevance || 'Fundamental para el examen.';
@@ -490,12 +504,12 @@ async function renderResult(type, data) {
       </div>
       <div class="action-cta-banner">
         <div>
-          <div style="font-weight: 700; font-size: 1.05rem;">¿Lista para poner a prueba tu conocimiento?</div>
-          <div style="font-size: 0.85rem; color: var(--text-muted);">Evalúa tu comprensión con tarjetas o un cuestionario interactivo.</div>
+          <div style="font-weight: 700; font-size: 0.98rem;">¿Lista para poner a prueba tu conocimiento?</div>
+          <div style="font-size: 0.8rem; color: var(--text-muted);">Evalúa tu comprensión con tarjetas o un cuestionario interactivo.</div>
         </div>
-        <div style="display:flex; gap:10px;">
-          <button id="goToCardsBtn" style="background:var(--input-bg); color:var(--text); border:1px solid var(--border); padding: 10px 18px; font-size:0.88rem;">Repasar Tarjetas</button>
-          <button id="goToQuizBtn" style="background:var(--primary); padding: 10px 18px; font-size:0.88rem;">Hacer Cuestionario</button>
+        <div style="display:flex; gap:8px;">
+          <button id="goToCardsBtn" class="render-btn-secondary" style="padding: 8px 14px; font-size:0.82rem;">Repasar Tarjetas</button>
+          <button id="goToQuizBtn" class="render-btn-primary" style="padding: 8px 14px; font-size:0.82rem;">Hacer Cuestionario</button>
         </div>
       </div>
     `;
@@ -528,7 +542,7 @@ async function renderResult(type, data) {
               <span>Tarjeta ${idx + 1} de ${data.length}</span>
               <span class="fc-mastered-chip">${masteredCount} / ${data.length} dominadas</span>
             </div>
-            <div style="font-size:0.85rem; color:var(--text-muted); font-weight:600;">Haz clic en la tarjeta para voltear</div>
+            <div style="font-size:0.8rem; color:var(--text-muted); font-weight:600;">Haz clic en la tarjeta para voltear</div>
           </div>
 
           <div class="fc-card-3d" id="fcCard3d">
@@ -548,7 +562,7 @@ async function renderResult(type, data) {
 
           <div class="fc-controls-row">
             <button class="btn-fc-nav" id="prevCardBtn">Anterior</button>
-            <button class="btn-fc-flip" id="flipCardBtn">Girar y Ver Respuesta</button>
+            <button class="btn-fc-flip" id="flipCardBtn">Girar Tarjeta</button>
             <button class="btn-fc-master" id="masterCardBtn">¡Me la sé!</button>
             <button class="btn-fc-nav" id="nextCardBtn">Siguiente</button>
           </div>
@@ -559,7 +573,7 @@ async function renderResult(type, data) {
       const flipBtn = document.getElementById('flipCardBtn');
       const toggleFlip = () => {
         card3d.classList.toggle('flipped');
-        flipBtn.textContent = card3d.classList.contains('flipped') ? 'Voltear a Pregunta' : 'Girar y Ver Respuesta';
+        flipBtn.textContent = card3d.classList.contains('flipped') ? 'Ver Pregunta' : 'Girar Tarjeta';
       };
 
       card3d.onclick = toggleFlip;
@@ -574,11 +588,11 @@ async function renderResult(type, data) {
   } else if (type === 'quiz') {
     el.resultTitle.textContent = 'Cuestionario de Opción Múltiple';
     const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-    let html = `<div class="quiz-container">`;
+    let html = `<div class="quiz-container animate-fade-in">`;
     html += `
       <div class="quiz-progress-bar">
         <span>Evaluación Interactiva (${data.length} preguntas)</span>
-        <span id="liveScoreBadge">Cuestionario listo para responder</span>
+        <span id="liveScoreBadge">Cuestionario listo</span>
       </div>
     `;
 
@@ -598,30 +612,27 @@ async function renderResult(type, data) {
           </label>
         `;
       });
-      // Contenedor individual de retroalimentación que aparecerá tras calificar
-      html += `<div id="feedback-q${i}" style="margin-top: 12px; font-size: 0.9rem; font-weight: 600;" hidden></div>`;
+      html += `<div id="feedback-q${i}" style="margin-top: 10px; font-size: 0.85rem; font-weight: 600;" hidden></div>`;
       html += `</div>`;
     });
 
     html += `
-      <div style="text-align: center; margin-top: 24px;">
-        <button id="checkQuizBtn" style="padding: 14px 32px; font-size: 1.05rem;">Calificar Cuestionario Completo</button>
+      <div style="text-align: center; margin-top: 20px;">
+        <button id="checkQuizBtn" class="render-btn-primary" style="padding: 12px 28px; font-size: 0.98rem;">Calificar Cuestionario Completo</button>
       </div>
-      <div id="qRes" style="margin-top:20px;"></div>
+      <div id="qRes" style="margin-top:16px;"></div>
     </div>`;
 
     el.view.innerHTML = html;
 
-    // Actualizador dinámico del contador conforme selecciona opciones
     el.view.querySelectorAll('input[type="radio"]').forEach(input => {
       input.addEventListener('change', () => {
         const answeredCount = el.view.querySelectorAll('input[type="radio"]:checked').length;
         const badge = document.getElementById('liveScoreBadge');
-        if (badge) badge.textContent = `Preguntas respondidas: ${answeredCount} / ${data.length}`;
+        if (badge) badge.textContent = `Respondidas: ${answeredCount} / ${data.length}`;
       });
     });
 
-    // Acción al dar clic en Calificar Cuestionario Completo
     document.getElementById('checkQuizBtn').onclick = () => {
       let score = 0;
 
@@ -631,23 +642,21 @@ async function renderResult(type, data) {
         const parentCard = document.getElementById(`qCard-${i}`);
         const correctVal = q.answer;
 
-        // Deshabilitar opciones una vez calificado
         parentCard.querySelectorAll('input[type="radio"]').forEach(r => r.disabled = true);
 
         if (sel && sel.value === correctVal) {
           score++;
-          sel.closest('.quiz-option-label').style.background = 'rgba(16, 185, 129, 0.2)';
+          sel.closest('.quiz-option-label').style.background = 'rgba(16, 185, 129, 0.12)';
           sel.closest('.quiz-option-label').style.borderColor = 'var(--success)';
           feedbackBox.innerHTML = `<span style="color: var(--success);">✨ ¡Correcto!</span>`;
         } else {
           if (sel) {
-            sel.closest('.quiz-option-label').style.background = 'rgba(239, 68, 68, 0.2)';
+            sel.closest('.quiz-option-label').style.background = 'rgba(239, 68, 68, 0.12)';
             sel.closest('.quiz-option-label').style.borderColor = 'var(--danger)';
           }
-          // Resaltar la respuesta correcta real
           parentCard.querySelectorAll('input[type="radio"]').forEach(r => {
             if (r.value === correctVal) {
-              r.closest('.quiz-option-label').style.background = 'rgba(16, 185, 129, 0.15)';
+              r.closest('.quiz-option-label').style.background = 'rgba(16, 185, 129, 0.12)';
               r.closest('.quiz-option-label').style.borderColor = 'var(--success)';
             }
           });
@@ -658,9 +667,9 @@ async function renderResult(type, data) {
 
       const pct = Math.round((score / data.length) * 100);
       document.getElementById('qRes').innerHTML = `
-        <div style="padding: 18px 24px; background: var(--banner-bg); border-radius: 12px; border: 1px solid var(--banner-border); color: var(--primary); text-align: center; font-size: 1.15rem;">
+        <div style="padding: 16px 20px; background: rgba(99, 102, 241, 0.08); border-radius: 11px; border: 1px solid rgba(99, 102, 241, 0.25); color: var(--primary); text-align: center; font-size: 1.05rem;" class="animate-fade-in">
           <strong>Calificación final: ${score} / ${data.length} (${pct}%)</strong>
-          <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 6px;">¡Revisa los aciertos y las correcciones detalladas pregunta por pregunta arriba!</p>
+          <p style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">¡Revisa los aciertos y correcciones detalladas arriba!</p>
         </div>
       `;
       document.getElementById('qRes').scrollIntoView({ behavior: 'smooth' });
@@ -675,32 +684,32 @@ async function renderResult(type, data) {
         <div class="oral-container animate-fade-in">
           <div class="oral-meta-header">
             <span class="oral-difficulty-badge">Pregunta ${idx + 1} de ${data.length}</span>
-            <button id="speakQuestionBtn" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:1.1rem;" title="Escuchar pregunta">🔊</button>
+            <button id="speakQuestionBtn" style="background:transparent; border:none; color:var(--text-muted); cursor:pointer; font-size:1.05rem;" title="Escuchar pregunta">🔊</button>
           </div>
 
           <h2 class="oral-question-title">${q.question}</h2>
 
           <div class="oral-points-box">
-            <div class="oral-points-title">✦ Puntos clave que el evaluador espera escuchar:</div>
+            <div class="oral-points-title">✦ Puntos clave esperados:</div>
             <ul class="oral-points-list">
               ${(q.keyPoints || q.keywords || []).map(point => `<li>${point}</li>`).join('')}
             </ul>
           </div>
 
-          <div style="font-size: 0.88rem; font-weight: 600; margin-bottom: 8px; color: var(--text-muted);">
-            Tu respuesta oral (habla por el micrófono o escribe):
+          <div style="font-size: 0.82rem; font-weight: 600; margin-bottom: 6px; color: var(--text-muted);">
+            Tu respuesta oral (usa el micrófono o escribe):
           </div>
 
           <div class="oral-input-wrapper">
-            <textarea id="oralAnswerText" class="oral-textarea" placeholder="Haz clic en el micrófono para hablar o escribe aquí como si estuvieras frente al profesor..."></textarea>
-            <button id="recMicBtn" class="oral-mic-btn" title="Hablar por micrófono">🎙️</button>
+            <textarea id="oralAnswerText" class="oral-textarea" placeholder="Habla por el micrófono o redacta tu respuesta..."></textarea>
+            <button id="recMicBtn" class="oral-mic-btn" title="Hablar">🎙️</button>
           </div>
 
           <div class="oral-footer-actions">
-            <button id="clearOralBtn" style="background:transparent; color:var(--text-muted); border:none; font-weight:600; cursor:pointer;">Borrar respuesta</button>
-            <div style="display:flex; gap:10px;">
-              <button id="nextOralBtn" style="background:var(--input-bg); color:var(--text); border:1px solid var(--border);">Siguiente pregunta</button>
-              <button id="evalOralBtn" class="btn-eval-oral">Evaluar Mi Respuesta Oral</button>
+            <button id="clearOralBtn" style="background:transparent; color:var(--text-muted); border:none; font-weight:600; cursor:pointer; font-size:0.85rem;">Borrar respuesta</button>
+            <div style="display:flex; gap:8px;">
+              <button id="nextOralBtn" class="render-btn-secondary" style="padding: 8px 14px; font-size:0.82rem;">Siguiente pregunta</button>
+              <button id="evalOralBtn" class="render-btn-primary" style="padding: 8px 16px; font-size:0.82rem;">Evaluar Respuesta</button>
             </div>
           </div>
 
@@ -724,7 +733,7 @@ async function renderResult(type, data) {
         r.lang = 'es-ES';
         r.start();
         recBtn.classList.add('listening');
-        textarea.placeholder = 'Escuchando tu respuesta...';
+        textarea.placeholder = 'Escuchando...';
 
         r.onresult = (e) => {
           textarea.value += (textarea.value ? ' ' : '') + e.results[0][0].transcript;
@@ -753,14 +762,14 @@ async function renderResult(type, data) {
 
         document.getElementById('oralFeedbackContainer').innerHTML = `
           <div class="oral-feedback-card animate-fade-in">
-            <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; color: var(--primary);">
+            <h3 style="font-size: 0.98rem; font-weight: 700; margin-bottom: 6px; color: var(--primary);">
               Evaluación del Profesor (${scorePct}% de cobertura)
             </h3>
-            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 12px;">
-              ${scorePct >= 75 ? '¡Excelente dominio del tema! Explicaste los puntos principales con claridad.' : 'Buen intento, pero te faltaron algunos detalles clave por mencionar.'}
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px;">
+              ${scorePct >= 75 ? '¡Excelente dominio del tema! Explicaste los puntos principales con claridad.' : 'Buen intento, pero te faltaron algunos detalles clave.'}
             </p>
-            <div style="font-size: 0.85rem; font-weight: 600;">Puntos detectados en tu explicación:</div>
-            <ul style="margin-top: 6px; padding-left: 18px; font-size: 0.88rem;">
+            <div style="font-size: 0.8rem; font-weight: 600;">Puntos detectados:</div>
+            <ul style="margin-top: 4px; padding-left: 16px; font-size: 0.82rem;">
               ${points.map(p => {
                 const found = matchedPoints.includes(p);
                 return `<li style="color: ${found ? 'var(--success)' : 'var(--warning)'};">${found ? '✓' : '✗'} ${p}</li>`;
@@ -781,7 +790,6 @@ async function renderResult(type, data) {
   }
 }
 
-// GUARDAR TEMA INCLUYENDO LOS ARCHIVOS ADJUNTOS EN FORMATO SNAPSHOT
 el.saveTopicBtn.addEventListener('click', () => {
   if (!currentGeneratedData) return;
   const topics = JSON.parse(localStorage.getItem('studyline_saved_topics') || '[]');
@@ -804,7 +812,7 @@ el.saveTopicBtn.addEventListener('click', () => {
   topics.unshift(newTopic);
   localStorage.setItem('studyline_saved_topics', JSON.stringify(topics));
   renderSavedTopics();
-  alert('¡Tema y archivos guardados con éxito en el historial!');
+  alert('¡Tema guardado con éxito en el historial!');
 });
 
 function renderSavedTopics() {
@@ -812,23 +820,23 @@ function renderSavedTopics() {
   el.savedCountBadge.textContent = topics.length;
 
   if (topics.length === 0) {
-    el.savedTopicsContainer.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-muted);">No hay temas guardados aún.</p>';
+    el.savedTopicsContainer.innerHTML = '<p class="empty-notice">No hay temas guardados aún.</p>';
     return;
   }
 
   el.savedTopicsContainer.innerHTML = topics.map(t => {
     const hasFiles = t.filesSnapshot && t.filesSnapshot.length > 0;
     return `
-      <div class="topic-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div class="topic-item animate-fade-in" style="flex-direction: column; align-items: stretch; gap: 6px;">
         <div class="topic-info" onclick="loadTopic(${t.id})">
           <div class="topic-title">${t.subject}</div>
           <div class="topic-meta">${t.moduleType.toUpperCase()} • ${t.depth} • ${t.date}</div>
         </div>
         ${hasFiles ? `
-          <div style="display:flex; flex-direction:column; gap:4px; border-top: 1px solid var(--border); padding-top: 6px;">
+          <div style="display:flex; flex-direction:column; gap:4px; border-top: 1px solid var(--panel-border); padding-top: 6px;">
             ${t.filesSnapshot.map((file, fIdx) => `
-              <button onclick="loadSavedFile(${t.id}, ${fIdx})" style="background:var(--input-bg); color:var(--primary); border:1px solid var(--border); padding:5px 8px; font-size:0.75rem; border-radius:6px; text-align:left; cursor:pointer; font-weight:600;">
-                📂 Ver original: ${file.name}
+              <button onclick="loadSavedFile(${t.id}, ${fIdx})" style="background:var(--bg-main); color:var(--primary); border:1px solid var(--panel-border); padding:4px 8px; font-size:0.7rem; border-radius:6px; text-align:left; cursor:pointer; font-weight:600;">
+                📂 Ver: ${file.name}
               </button>
             `).join('')}
           </div>
@@ -848,7 +856,6 @@ window.loadTopic = (id) => {
   
   cachedModulesData = t.allCachedData || { [t.moduleType]: t.data };
   
-  // Restauramos también los archivos guardados en el panel de trabajo actual para consultarlos
   if (t.filesSnapshot) {
     uploadedFilesList = t.filesSnapshot.map(f => ({
       name: f.name,
@@ -859,7 +866,7 @@ window.loadTopic = (id) => {
     renderFilePreviews();
   }
 
-  el.topTopicSubtitle.textContent = `Tema: ${t.subject}`;
+  el.topTopicSubtitle.textContent = t.subject;
   el.bannerSubject.textContent = t.subject;
   el.bannerGoal.textContent = `Objetivo: ${t.goal || 'Estudio'}`;
   el.studyBanner.hidden = false;
